@@ -12,6 +12,8 @@ def snapshot():
     # Create directories
     setup_directories(cfg)
 
+    # TODO: make subparsers share arguments etc
+
     parser = argparse.ArgumentParser(prog='snapshot')
 
     parser.add_argument('config', help='TOML config file.')
@@ -35,10 +37,14 @@ def snapshot():
     diff_parser = subparsers.add_parser('diff', help='Display difference between expected and received output files.')
     diff_parser.add_argument('input_files', nargs='+', help='Files to diff.')
 
+    clean_parser = subparsers.add_parser('clean', help='Clean all expected and received files.')
+
     args = parser.parse_args()
     test_configs = get_test_configs(cfg, args)
-    # TODO: validate that files exist
-    test_instances = gather_tests(test_configs, args.input_files) # TODO: gather_test_instances
+    test_instances = None
+
+    if hasattr(args, 'input_files'):
+        test_instances = gather_test_instances(test_configs, args.input_files) # TODO: gather_test_instances
 
     if args.command == 'run':
         run(cfg, test_instances, args)
@@ -48,16 +54,23 @@ def snapshot():
         diff(cfg, test_instances, args)
     elif args.command == 'unaccept': # TODO: better name
         unaccept(cfg, test_instances, args)
-    elif args.command == 'rm': # TODO: better name
+    elif args.command == 'rm':
         rm(cfg, test_instances, args)
+    elif args.command == 'clean':
+        clean(cfg, test_instances, args)
     else:
         parser.print_help()
+
+
+def clean(config: AppConfig, tests: [TestInstance], args):
+    shutil.rmtree(config.output_dir)
 
 
 def unaccept(config: AppConfig, tests: [TestInstance], args):
     for t in tests:
         expected = get_expected_output_file(config, t.config.name, t.input_file)
         expected.unlink()
+
 
 def rm(config: AppConfig, tests: [TestInstance], args):
     for t in tests:
@@ -66,6 +79,7 @@ def rm(config: AppConfig, tests: [TestInstance], args):
 
         received.unlink(missing_ok=True)
         expected.unlink(missing_ok=True)
+
 
 def diff(config: AppConfig, tests: [TestInstance], args):
     for t in tests:
@@ -94,7 +108,7 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
             cmp_result = compare_test_output_files(config, result.test)
 
             if args.save:
-                accept_output(config, result.test.config, result.test.input_file)
+                accept_output(config, result.test)
             else:
                 if cmp_result.kind == CompareResultKind.FAIL:
                     print(f'File {result.test.input_file} differs from expected output:')
@@ -130,6 +144,25 @@ def get_test_configs(config: AppConfig, args: [str]) -> [TestConfig]:
                 assert False
 
     return tests
+
+
+def gather_test_instances(test_configs: [TestConfig], files: [str]) -> [TestInstance]:
+    result: [TestInstance] = []
+
+    for test_cfg in test_configs:
+        for f in files:
+            path = Path(f)
+
+            # TODO: proper error handling
+            if not path.exists():
+                print(f'No file called {f}')
+                assert False
+            else:
+                test = TestInstance(test_cfg, Path(f))
+
+            result.append(test)
+
+    return result
 
 
 if __name__ == '__main__':

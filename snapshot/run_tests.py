@@ -5,18 +5,6 @@ import re
 
 from comparison import *
 
-def gather_tests(test_configs: [TestConfig], files: [str]) -> [TestInstance]:
-    result: [TestInstance] = []
-
-    for test_cfg in test_configs:
-        for f in files:
-            # TODO: Validate that files exist
-            test = TestInstance(test_cfg, Path(f))
-
-            result.append(test)
-
-    return result
-
 
 # TODO: multithread
 def run_tests(config: AppConfig, tests: [TestInstance], max_failures: int) -> [TestExecutionResult]:
@@ -25,7 +13,7 @@ def run_tests(config: AppConfig, tests: [TestInstance], max_failures: int) -> [T
 
     for t in tests:
         cmd = format_command(t.config.command, t.input_file)
-        output_file = get_received_output_file(config, t.config.name, t.input_file)
+        output_file = get_received_output_file(config, t)
         exec_result = execute_command(cmd, output_file)
 
         if exec_result.returncode != t.config.return_code:
