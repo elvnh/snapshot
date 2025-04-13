@@ -33,3 +33,9 @@ def compare_test_output_files(config: AppConfig, test_instance: TestInstance) ->
                 return CompareResult(kind=CompareResultKind.FAIL, diff=diff)
             else:
                 return CompareResult(kind=CompareResultKind.PASS)
+
+
+def print_diff(diff_lines: [str]):
+    for line in diff_lines:
+        # TODO: colored diff print
+        print(line)

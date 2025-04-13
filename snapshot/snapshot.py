@@ -26,20 +26,34 @@ def snapshot():
     accept_parser = subparsers.add_parser('accept', help='Accept received output.')
     accept_parser.add_argument('input_files', nargs='+', help='Files to accept.')
 
+    diff_parser = subparsers.add_parser('diff', help='Display difference between expected and received output files.')
+    diff_parser.add_argument('input_files', nargs='+', help='Files to diff.')
+
     args = parser.parse_args()
-    tests = get_test_configs(cfg, args)
+    test_configs = get_test_configs(cfg, args)
+    test_instances = gather_tests(test_configs, args.input_files) # TODO: gather_test_instances
 
     if args.command == 'run':
-        run(cfg, tests, args)
+        run(cfg, test_instances, args)
     elif args.command == 'accept':
-        accept(cfg, tests, args)
+        accept(cfg, test_instances, args)
+    elif args.command == 'diff':
+        diff(cfg, test_instances, args)
     else:
         parser.print_help()
 
 
-def run(config: AppConfig, tests_to_run: [TestConfig], args):
+def diff(config: AppConfig, tests: [TestInstance], args):
+    for t in tests:
+        for f in args.input_files:
+            cmp_result = compare_test_output_files(config, t)
+            if cmp_result.kind != CompareResultKind.PASS:
+                print_diff(cmp_result.diff)
+                # TODO: if interactive, let user accept
+
+
+def run(config: AppConfig, test_instances: [TestInstance], args):
     # TODO: call function to gather and validate input files as Path array
-    test_instances = gather_tests(tests_to_run, args.input_files)
 
     # Execute tests
     test_exec_results = run_tests(config, test_instances, config.max_failures)
@@ -59,13 +73,9 @@ def run(config: AppConfig, tests_to_run: [TestConfig], args):
                 accept_output(config, result.test.config, result.test.input_file)
             else:
                 if cmp_result.kind == CompareResultKind.FAIL:
-                    print(f'File {result.test.input_file} differs from expected counterpart:')
-
-                    for line in cmp_result.diff:
-                        # TODO: colored diff print
-                        print(line)
-
-                        failures += 1
+                    print(f'File {result.test.input_file} differs from expected output:')
+                    print_diff(cmp_result.diff)
+                    failures += 1
                 elif cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
                     # TODO: save if --save flag is present
                     print(f'File {result.test.input_file} lacks an expected counterpart.')
