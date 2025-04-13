@@ -1,13 +1,7 @@
 import argparse
-import re
-from dataclasses import dataclass
-import shlex
-import shutil
-import subprocess
-import difflib
-from enum import Enum
 
-from tests import *
+
+from comparison import *
 
 def snapshot():
     # Read config
@@ -29,54 +23,49 @@ def snapshot():
     args = parser.parse_args()
 
     if args.command == 'run':
-        # Gather tests
-        tests_to_run = []
-
-        if args.tests == ['*']:
-            tests_to_run = list(cfg.test_configs.values())
-        else:
-            for t in args.tests:
-                if t in cfg.test_configs.keys():
-                    tests_to_run.append(cfg.test_configs[t])
-                else:
-                    print(f'No test called {t}.')
-                    assert False
-
-        test_instances = gather_tests(tests_to_run, args.input_files)
+        run(cfg, args)
     else:
         parser.print_help()
 
 
-def setup_directories(cfg: AppConfig):
-    cfg.output_dir.mkdir(exist_ok=True)
+def run(config: AppConfig, args: [str]):
+    # Gather tests
+    tests_to_run = []
 
-    for test in cfg.test_configs.items():
-        received_dir = get_received_output_dir(cfg, test[0])
-        expected_dir = get_expected_output_dir(cfg, test[0])
+    if args.tests == '*':
+        tests_to_run = list(config.test_configs.values())
+    else:
+        for t in args.tests:
+            if t in config.test_configs.keys():
+                tests_to_run.append(config.test_configs[t])
+            else:
+                print(f'No test called {t}.')
+                assert False
 
-        received_dir.mkdir(exist_ok=True, parents=True)
-        expected_dir.mkdir(exist_ok=True, parents=True)
+    # TODO: gather_tests should check that all files exist
+    test_instances = gather_tests(tests_to_run, args.input_files)
 
+    # Execute tests
+    test_exec_results = run_tests(config, test_instances)
 
-def get_test_output_dir(config: AppConfig, test_name: str) -> Path:
-    return Path(config.output_dir / test_name)
+    # TOOD: Check if we have exceeded max failures already
 
+    # Go through all tests and compare outputs
+    for result in test_exec_results:
+        if result.kind == TestExecutionResultKind.PASS:
+            cmp_result = compare_test_output_files(config, result.test)
 
-def get_received_output_dir(config: AppConfig, test_name: str) -> Path:
-    return Path(get_test_output_dir(config, test_name) / "received")
+            if cmp_result.kind == CompareResultKind.FAIL:
+                print(f'File {result.test.input_file} differs from expected counterpart:')
 
-
-def get_expected_output_dir(config: AppConfig, test_name: str) -> Path:
-    return Path(get_test_output_dir(config, test_name) / "expected")
-
-
-def get_received_output_file(config: AppConfig, test_name: str, filename: Path) -> Path:
-    return Path(get_received_output_dir(config, test_name) /  filename)
-
-
-def get_received_output_file(config: AppConfig, test_name: str, filename: Path) -> Path:
-    return Path(get_expected_output_dir(config, test_name) /  filename)
-
+                for line in cmp_result.diff:
+                    print(line)
+                pass
+            if cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
+                print(f'File {result.test.input_file} lacks an expected counterpart.')
+                pass
+        else:
+            assert False
 
 if __name__ == '__main__':
     snapshot()
