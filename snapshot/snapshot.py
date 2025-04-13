@@ -3,16 +3,16 @@ import argparse
 from run_tests import *
 from accept import *
 
+
 # TODO: store args in AppConfig
+# TODO: Fix
+# TODO: make subparsers share arguments etc
+# TODO: comma separated tests
 
 def snapshot():
-    # Read config
     cfg = parse_config_file('config.toml')
 
-    # Create directories
     setup_directories(cfg)
-
-    # TODO: make subparsers share arguments etc
 
     parser = argparse.ArgumentParser(prog='snapshot')
 
@@ -91,9 +91,6 @@ def diff(config: AppConfig, tests: [TestInstance], args):
 
 
 def run(config: AppConfig, test_instances: [TestInstance], args):
-    # TODO: call function to gather and validate input files as Path array
-
-    # Execute tests
     test_exec_results = run_tests(config, test_instances, config.max_failures)
 
     failures = sum([1 for x in test_exec_results if x.kind == TestExecutionResultKind.FAIL])
@@ -115,7 +112,6 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
                     print_diff(cmp_result.diff)
                     failures += 1
                 elif cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
-                    # TODO: save if --save flag is present
                     print(f'File {result.test.input_file} lacks an expected counterpart.')
                     failures += 1
         elif result.kind == TestExecutionResultKind.FAIL:

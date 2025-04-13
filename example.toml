@@ -1,0 +1,6 @@
+output_dir = "foo"
+max_failures = 10
+
+[tests.basic]
+command = "cat {file}" # filename replaced by input file
+return_code = 0
