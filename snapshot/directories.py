@@ -22,7 +22,7 @@ def get_received_output_dir(config: AppConfig, test_name: str) -> Path:
 def get_expected_output_dir(config: AppConfig, test_name: str) -> Path:
     return Path(get_test_output_dir(config, test_name) / "expected")
 
-
+# TODO: should these just take a TestInstance?
 def get_received_output_file(config: AppConfig, test_name: str, filename: Path) -> Path:
     return Path(get_received_output_dir(config, test_name) /  filename)
 

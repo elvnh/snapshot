@@ -26,11 +26,18 @@ def snapshot():
     accept_parser = subparsers.add_parser('accept', help='Accept received output.')
     accept_parser.add_argument('input_files', nargs='+', help='Files to accept.')
 
+    unaccept_parser = subparsers.add_parser('unaccept', help='Unaccept received output.')
+    unaccept_parser.add_argument('input_files', nargs='+', help='Files to unaccept.')
+
+    rm_parser = subparsers.add_parser('rm', help='Remove received and expected output.')
+    rm_parser.add_argument('input_files', nargs='+', help='Files to remove.')
+
     diff_parser = subparsers.add_parser('diff', help='Display difference between expected and received output files.')
     diff_parser.add_argument('input_files', nargs='+', help='Files to diff.')
 
     args = parser.parse_args()
     test_configs = get_test_configs(cfg, args)
+    # TODO: validate that files exist
     test_instances = gather_tests(test_configs, args.input_files) # TODO: gather_test_instances
 
     if args.command == 'run':
@@ -39,9 +46,26 @@ def snapshot():
         accept(cfg, test_instances, args)
     elif args.command == 'diff':
         diff(cfg, test_instances, args)
+    elif args.command == 'unaccept': # TODO: better name
+        unaccept(cfg, test_instances, args)
+    elif args.command == 'rm': # TODO: better name
+        rm(cfg, test_instances, args)
     else:
         parser.print_help()
 
+
+def unaccept(config: AppConfig, tests: [TestInstance], args):
+    for t in tests:
+        expected = get_expected_output_file(config, t.config.name, t.input_file)
+        expected.unlink()
+
+def rm(config: AppConfig, tests: [TestInstance], args):
+    for t in tests:
+        received = get_received_output_file(config, t.config.name, t.input_file)
+        expected = get_expected_output_file(config, t.config.name, t.input_file)
+
+        received.unlink(missing_ok=True)
+        expected.unlink(missing_ok=True)
 
 def diff(config: AppConfig, tests: [TestInstance], args):
     for t in tests:
