@@ -37,8 +37,9 @@ def gather_tests(test_configs: [TestConfig], files: [str]) -> [TestInstance]:
 
 
 # TODO: multithread
-def run_tests(config: AppConfig, tests: [TestInstance]) -> [TestExecutionResult]:
+def run_tests(config: AppConfig, tests: [TestInstance], max_failures: int) -> [TestExecutionResult]:
     results = []
+    failures = 0
 
     for t in tests:
         cmd = format_command(t.config.command, t.input_file)
@@ -47,8 +48,12 @@ def run_tests(config: AppConfig, tests: [TestInstance]) -> [TestExecutionResult]
 
         if exec_result.returncode != t.config.return_code:
             fail = TestExecutionResult(TestExecutionResultKind.FAIL, t, exec_result.returncode)
-
             results.append(fail)
+
+            failures += 1
+
+            if failures >= max_failures:
+                break
         else:
             passed = TestExecutionResult(TestExecutionResultKind.PASS, t)
             results.append(passed)

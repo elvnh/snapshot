@@ -1,3 +1,5 @@
+#ifndef SNAPSHOT_PY
+#define SNAPSHOT_PY
 import argparse
 
 
@@ -29,7 +31,7 @@ def snapshot():
 
 
 def run(config: AppConfig, args: [str]):
-    # Gather tests
+    # Gather testsN
     tests_to_run = []
 
     if args.tests == '*':
@@ -46,26 +48,37 @@ def run(config: AppConfig, args: [str]):
     test_instances = gather_tests(tests_to_run, args.input_files)
 
     # Execute tests
-    test_exec_results = run_tests(config, test_instances)
+    test_exec_results = run_tests(config, test_instances, config.max_failures)
 
-    # TOOD: Check if we have exceeded max failures already
+    failures = sum([1 for x in test_exec_results if x.kind == TestExecutionResultKind.FAIL])
+
+    # TODO: report all failed executions before running tests
 
     # Go through all tests and compare outputs
     for result in test_exec_results:
-        if result.kind == TestExecutionResultKind.PASS:
+        # Only continue running tests if we haven't exceeded max failures.
+        # Otherwise, only report the failed executions and then stop.
+        if result.kind == TestExecutionResultKind.PASS and failures < config.max_failures:
             cmp_result = compare_test_output_files(config, result.test)
 
             if cmp_result.kind == CompareResultKind.FAIL:
                 print(f'File {result.test.input_file} differs from expected counterpart:')
 
                 for line in cmp_result.diff:
+                    # TODO: colored diff print
                     print(line)
-                pass
-            if cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
+
+                failures += 1
+            elif cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
+                # TODO: save if --save flag is present
                 print(f'File {result.test.input_file} lacks an expected counterpart.')
-                pass
+                failures += 1
+        elif result.kind == TestExecutionResultKind.FAIL:
+            print(f"Failed to run test '{result.test.config.name}' with input file '{result.test.input_file}'.")
         else:
             assert False
 
 if __name__ == '__main__':
     snapshot()
+
+#endif //SNAPSHOT_PY
