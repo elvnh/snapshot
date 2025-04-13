@@ -11,14 +11,9 @@ class AppConfig:
 
 @dataclass
 class TestConfig:
+    name: str
     command: str             # The command to run test
     return_code: int = 0     # Expected return code
-
-
-@dataclass
-class SingleTest:
-    config: TestConfig
-    filename: Path
 
 
 def parse_config_file(path: Path) -> AppConfig:
@@ -31,7 +26,7 @@ def parse_config_file(path: Path) -> AppConfig:
 
         for s in data["tests"].items():
             name = s[0]
-            test_conf = TestConfig(**s[1])
+            test_conf = TestConfig(name, **s[1])
             test_configs[name] = test_conf
 
         return AppConfig(Path(output_dir), max_failures, test_configs)

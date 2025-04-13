@@ -1,19 +1,51 @@
-from config import *
+import argparse
+import re
+from dataclasses import dataclass
+import shlex
+import shutil
+import subprocess
+import difflib
+from enum import Enum
 
+from tests import *
 
 def snapshot():
-    # read config
+    # Read config
     cfg = parse_config_file('config.toml')
-    print(cfg)
 
-    # create directories
+    # Create directories
     setup_directories(cfg)
 
-    # check flags
+    parser = argparse.ArgumentParser(prog='snapshot')
 
-    # gather tests
+    parser.add_argument('config', help='TOML config file.')
+    parser.add_argument('--tests', help='Which tests to run.', nargs='+', default='*')
 
-    # execute tests
+    subparsers = parser.add_subparsers(dest='command')
+
+    run_parser = subparsers.add_parser('run', help='Run tests')
+    run_parser.add_argument('input_files', nargs='+', help='Files to run tests on.')
+
+    args = parser.parse_args()
+
+    if args.command == 'run':
+        # Gather tests
+        tests_to_run = []
+
+        if args.tests == ['*']:
+            tests_to_run = list(cfg.test_configs.values())
+        else:
+            for t in args.tests:
+                if t in cfg.test_configs.keys():
+                    tests_to_run.append(cfg.test_configs[t])
+                else:
+                    print(f'No test called {t}.')
+                    assert False
+
+        test_instances = gather_tests(tests_to_run, args.input_files)
+    else:
+        parser.print_help()
+
 
 def setup_directories(cfg: AppConfig):
     cfg.output_dir.mkdir(exist_ok=True)
