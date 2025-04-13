@@ -1,6 +1,7 @@
-from run_tests import *
 import difflib
 
+from test import *
+from directories import *
 
 class CompareResultKind(Enum):
     PASS = 0

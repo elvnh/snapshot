@@ -1,7 +1,9 @@
 import argparse
 
+from run_tests import *
+from accept import *
 
-from comparison import *
+# TODO: store args in AppConfig
 
 def snapshot():
     # Read config
@@ -19,40 +21,23 @@ def snapshot():
 
     run_parser = subparsers.add_parser('run', help='Run tests')
     run_parser.add_argument('input_files', nargs='+', help='Files to run tests on.')
+    run_parser.add_argument('--save', action='store_true', default=False, help='Automatically accept all output.')
 
     accept_parser = subparsers.add_parser('accept', help='Accept received output.')
     accept_parser.add_argument('input_files', nargs='+', help='Files to accept.')
 
     args = parser.parse_args()
+    tests = get_test_configs(cfg, args)
 
     if args.command == 'run':
-        run(cfg, args)
+        run(cfg, tests, args)
     elif args.command == 'accept':
-        accept(cfg, args)
+        accept(cfg, tests, args)
     else:
         parser.print_help()
 
 
-def get_test_configs(config: AppConfig, args: [str]) -> [TestConfig]:
-    tests = []
-
-    if args.tests == '*':
-        tests = list(config.test_configs.values())
-    else:
-        for t in args.tests:
-            if t in config.test_configs.keys():
-                tests.append(config.test_configs[t])
-            else:
-                print(f'No test called {t}.')
-                assert False
-
-    return tests
-
-
-def run(config: AppConfig, args: [str]):
-    # Gather tests
-    tests_to_run = get_test_configs(config, args)
-
+def run(config: AppConfig, tests_to_run: [TestConfig], args):
     # TODO: call function to gather and validate input files as Path array
     test_instances = gather_tests(tests_to_run, args.input_files)
 
@@ -70,33 +55,47 @@ def run(config: AppConfig, args: [str]):
         if result.kind == TestExecutionResultKind.PASS and failures < config.max_failures:
             cmp_result = compare_test_output_files(config, result.test)
 
-            if cmp_result.kind == CompareResultKind.FAIL:
-                print(f'File {result.test.input_file} differs from expected counterpart:')
+            if args.save:
+                accept_output(config, result.test.config, result.test.input_file)
+            else:
+                if cmp_result.kind == CompareResultKind.FAIL:
+                    print(f'File {result.test.input_file} differs from expected counterpart:')
 
-                for line in cmp_result.diff:
-                    # TODO: colored diff print
-                    print(line)
+                    for line in cmp_result.diff:
+                        # TODO: colored diff print
+                        print(line)
 
-                failures += 1
-            elif cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
-                # TODO: save if --save flag is present
-                print(f'File {result.test.input_file} lacks an expected counterpart.')
-                failures += 1
+                        failures += 1
+                elif cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
+                    # TODO: save if --save flag is present
+                    print(f'File {result.test.input_file} lacks an expected counterpart.')
+                    failures += 1
         elif result.kind == TestExecutionResultKind.FAIL:
             print(f"Failed to run test '{result.test.config.name}' with input file '{result.test.input_file}'.")
         else:
             assert False
 
-def accept(cfg: AppConfig, args: [str]):
-    tests = get_test_configs(cfg, args)
 
+def accept(cfg: AppConfig, tests: [TestConfig], args: [str]):
     for t in tests:
         for f in args.input_files:
-            # TODO: rename get_received_output_file to *_dir
-            received_file = get_received_output_file(cfg, t.name, f)
-            expected_file = get_expected_output_file(cfg, t.name, f)
+            accept_output(cfg, t, f)
 
-            expected_file.write_bytes(received_file.read_bytes())
+
+def get_test_configs(config: AppConfig, args: [str]) -> [TestConfig]:
+    tests = []
+
+    if args.tests == '*':
+        tests = list(config.test_configs.values())
+    else:
+        for t in args.tests:
+            if t in config.test_configs.keys():
+                tests.append(config.test_configs[t])
+            else:
+                print(f'No test called {t}.')
+                assert False
+
+    return tests
 
 
 if __name__ == '__main__':
