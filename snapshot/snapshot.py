@@ -1,5 +1,3 @@
-#ifndef SNAPSHOT_PY
-#define SNAPSHOT_PY
 import argparse
 
 
@@ -22,29 +20,40 @@ def snapshot():
     run_parser = subparsers.add_parser('run', help='Run tests')
     run_parser.add_argument('input_files', nargs='+', help='Files to run tests on.')
 
+    accept_parser = subparsers.add_parser('accept', help='Accept received output.')
+    accept_parser.add_argument('input_files', nargs='+', help='Files to accept.')
+
     args = parser.parse_args()
 
     if args.command == 'run':
         run(cfg, args)
+    elif args.command == 'accept':
+        accept(cfg, args)
     else:
         parser.print_help()
 
 
-def run(config: AppConfig, args: [str]):
-    # Gather testsN
-    tests_to_run = []
+def get_test_configs(config: AppConfig, args: [str]) -> [TestConfig]:
+    tests = []
 
     if args.tests == '*':
-        tests_to_run = list(config.test_configs.values())
+        tests = list(config.test_configs.values())
     else:
         for t in args.tests:
             if t in config.test_configs.keys():
-                tests_to_run.append(config.test_configs[t])
+                tests.append(config.test_configs[t])
             else:
                 print(f'No test called {t}.')
                 assert False
 
-    # TODO: gather_tests should check that all files exist
+    return tests
+
+
+def run(config: AppConfig, args: [str]):
+    # Gather tests
+    tests_to_run = get_test_configs(config, args)
+
+    # TODO: call function to gather and validate input files as Path array
     test_instances = gather_tests(tests_to_run, args.input_files)
 
     # Execute tests
@@ -78,7 +87,17 @@ def run(config: AppConfig, args: [str]):
         else:
             assert False
 
+def accept(cfg: AppConfig, args: [str]):
+    tests = get_test_configs(cfg, args)
+
+    for t in tests:
+        for f in args.input_files:
+            # TODO: rename get_received_output_file to *_dir
+            received_file = get_received_output_file(cfg, t.name, f)
+            expected_file = get_expected_output_file(cfg, t.name, f)
+
+            expected_file.write_bytes(received_file.read_bytes())
+
+
 if __name__ == '__main__':
     snapshot()
-
-#endif //SNAPSHOT_PY
