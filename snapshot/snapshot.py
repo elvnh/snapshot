@@ -10,10 +10,6 @@ from accept import *
 # TODO: comma separated tests
 
 def snapshot():
-    cfg = parse_config_file('config.toml')
-
-    setup_directories(cfg)
-
     parser = argparse.ArgumentParser(prog='snapshot')
 
     parser.add_argument('config', help='TOML config file.')
@@ -40,11 +36,16 @@ def snapshot():
     clean_parser = subparsers.add_parser('clean', help='Clean all expected and received files.')
 
     args = parser.parse_args()
+
+    cfg = parse_config_file(args.config)
+
+    setup_directories(cfg)
+
     test_configs = get_test_configs(cfg, args)
     test_instances = None
 
     if hasattr(args, 'input_files'):
-        test_instances = gather_test_instances(test_configs, args.input_files) # TODO: gather_test_instances
+        test_instances = gather_test_instances(test_configs, args.input_files)
 
     if args.command == 'run':
         run(cfg, test_instances, args)
@@ -86,8 +87,9 @@ def diff(config: AppConfig, tests: [TestInstance], args):
         for f in args.input_files:
             cmp_result = compare_test_output_files(config, t)
             if cmp_result.kind != CompareResultKind.PASS:
-                print_diff(cmp_result.diff)
                 # TODO: if interactive, let user accept
+                print(f"Received output for file '{f}' differs from expected output:")
+                print_diff(cmp_result.diff)
 
 
 def run(config: AppConfig, test_instances: [TestInstance], args):
@@ -108,8 +110,10 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
                 accept_output(config, result.test)
             else:
                 if cmp_result.kind == CompareResultKind.FAIL:
+                    # TODO: nicer printing
                     print(f'File {result.test.input_file} differs from expected output:')
                     print_diff(cmp_result.diff)
+
                     failures += 1
                 elif cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
                     print(f'File {result.test.input_file} lacks an expected counterpart.')
@@ -123,7 +127,7 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
 def accept(cfg: AppConfig, tests: [TestConfig], args: [str]):
     for t in tests:
         for f in args.input_files:
-            accept_output(cfg, t, f)
+            accept_output(cfg, t)
 
 
 def get_test_configs(config: AppConfig, args: [str]) -> [TestConfig]:

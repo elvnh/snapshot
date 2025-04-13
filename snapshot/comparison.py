@@ -30,8 +30,9 @@ def compare_test_output_files(config: AppConfig, test_instance: TestInstance) ->
         return CompareResult(kind=CompareResultKind.MISSING_EXPECTED)
     else:
         with open(received_file, 'r') as recv, open(expected_file, 'r') as exp:
-            diff = list(difflib.unified_diff(exp.readlines(), recv.readlines(), lineterm=''))
-
+            diff = list(difflib.unified_diff(exp.readlines(), recv.readlines(), lineterm='\n'))
+            diff[0] = f"{diff[0].rstrip()} {str(expected_file)}\n"
+            diff[1] = f"{diff[1].rstrip()} {str(received_file)}\n"
             if diff:
                 return CompareResult(kind=CompareResultKind.FAIL, diff=diff)
             else:
@@ -39,6 +40,27 @@ def compare_test_output_files(config: AppConfig, test_instance: TestInstance) ->
 
 
 def print_diff(diff_lines: [str]):
-    for line in diff_lines:
-        # TODO: colored diff print
-        print(line)
+    green = '\x1b[32m'
+    red = '\x1b[31m'
+    reset = '\x1b[0m'
+    cyan = '\x1b[36m'
+    bold = '\x1b[1m'
+
+    print(bold + red + diff_lines[0] + reset, end='')
+    print(bold + green + diff_lines[1] + reset, end='')
+
+    for line in diff_lines[2:]:
+        output = None
+
+        if line[0] == '-':
+            output = red + line + reset
+        elif line[0] == '+':
+            output = green + line + reset
+        elif line[0] == '@':
+            output = cyan + line + reset
+        else:
+            output = line
+
+        print(output, end='')
+
+    print()
