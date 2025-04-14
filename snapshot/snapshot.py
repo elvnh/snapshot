@@ -5,6 +5,8 @@ from accept import *
 # TODO: make subparsers share arguments etc
 # TODO: comma separated tests flag
 # TODO: allow setting user specified file as expected output
+# TODO: running from different directory
+
 
 def snapshot():
     parser = create_parser()
@@ -116,7 +118,7 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
     pass_count = len(passed)
     total_count = fail_count + pass_count
 
-    print(f"Passed {pass_count}/{total_count} tests.\n")
+    print(f"\nPassed {pass_count}/{total_count} tests.\n")
 
     for fail in failed:
         if fail.kind is TestResultKind.MISSING_EXPECTED:
@@ -141,10 +143,12 @@ def accept(cfg: AppConfig, tests: [TestConfig], args: [str]):
 def get_test_configs(config: AppConfig, args: [str]) -> [TestConfig]:
     tests = []
 
-    if args.tests == '*':
+    if args.tests == ['*']:
         tests = list(config.test_configs.values())
     else:
-        for t in args.tests:
+        split = args.tests[0].split(',')
+
+        for t in split:
             if t in config.test_configs.keys():
                 tests.append(config.test_configs[t])
             else:
@@ -177,13 +181,13 @@ def create_parser():
     parser = argparse.ArgumentParser(prog='snapshot')
 
     parser.add_argument('config', help='TOML config file.')
-    parser.add_argument('--tests', help='Which tests to run.', nargs='+', default='*')
+    parser.add_argument('-t', '--tests', help='Which tests to run.', nargs=1, default=['*'])
 
     subparsers = parser.add_subparsers(dest='command')
 
     run_parser = subparsers.add_parser('run', help='Run tests')
     run_parser.add_argument('input_files', nargs='+', help='Files to run tests on.')
-    run_parser.add_argument('--save', action='store_true', default=False, help='Automatically accept all output.')
+    run_parser.add_argument('-s', '--save', action='store_true', default=False, help='Automatically accept all output.')
 
     accept_parser = subparsers.add_parser('accept', help='Accept received output.')
     accept_parser.add_argument('input_files', nargs='+', help='Files to accept.')
