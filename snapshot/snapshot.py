@@ -5,9 +5,12 @@ from accept import *
 
 
 # TODO: store args in AppConfig
-# TODO: Fix
 # TODO: make subparsers share arguments etc
-# TODO: comma separated tests
+# TODO: comma separated tests flag
+# TODO: use same test class for all purposes
+# TODO: TestInstance -> TestToExecute
+# TODO: allow setting user speicifed file as expected
+# TODO: remove unused classes
 
 def snapshot():
     parser = argparse.ArgumentParser(prog='snapshot')
@@ -93,33 +96,52 @@ def diff(config: AppConfig, tests: [TestInstance], args):
 
 
 def run(config: AppConfig, test_instances: [TestInstance], args):
-    test_exec_results = run_tests(config, test_instances, config.max_failures)
+    # to_compare: tests that successfully ran but need their outputs verifier
+    # failed: tests that failed to run
+    to_compare, failed = run_tests(config, test_instances, config.max_failures)
+    passed = []
 
-    failures = sum([1 for x in test_exec_results if x.kind == TestExecutionResultKind.FAIL])
+    for test in to_compare:
+        # Go through all candidates and compare their outputs to expected
+        assert test.kind is TestResultKind.PASSED_EXECUTION
 
-    # TODO: report all failed executions before running tests
+        if len(failed) >= config.max_failures:
+            break
 
-    # Go through all tests and compare outputs
-    for result in test_exec_results:
-        # Only continue running tests if we haven't exceeded max failures.
-        # Otherwise, only report the failed executions and then stop.
-        if result.kind == TestExecutionResultKind.PASS and failures < config.max_failures:
-            cmp_result = compare_test_output_files(config, result.test)
+        cmp_result = compare_test_output_files(config, test.test)
 
-            if args.save:
-                accept_output(config, result.test)
-            else:
-                if cmp_result.kind == CompareResultKind.FAIL:
-                    # TODO: nicer printing
-                    print(f'File {result.test.input_file} differs from expected output:')
-                    print_diff(cmp_result.diff)
+        if cmp_result is None:
+            # Unable to compare since there is no expected output
+            # TODO: if save flag is present, accept and count as pass
+            test.kind = TestResultKind.MISSING_EXPECTED
+            failed.append(test)
+        elif cmp_result == []:
+            # No diff between received and expected output, count as pass
+            test.kind = TestResultKind.PASSED_COMPARISON
+            passed.append(test)
+        else:
+            # Diff between received and expected output, count as fail
+            assert test.kind is TestResultKind.PASSED_EXECUTION
+            test.kind = TestResultKind.FAILED_COMPARISON
+            test.data = cmp_result
+            failed.append(test)
 
-                    failures += 1
-                elif cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
-                    print(f'File {result.test.input_file} lacks an expected counterpart.')
-                    failures += 1
-        elif result.kind == TestExecutionResultKind.FAIL:
-            print(f"Failed to run test '{result.test.config.name}' with input file '{result.test.input_file}'.")
+    fail_count = len(failed)
+    pass_count = len(passed)
+    total_count = fail_count + pass_count
+
+    print(f"Passed {pass_count}/{total_count} tests.\n")
+
+    for fail in failed:
+        if test.kind is TestResultKind.MISSING_EXPECTED:
+            print(f"File '{fail.test.input_file}' lacks expected output for "
+                  f"test '{fail.test.config.name}'.")
+        elif test.kind is TestResultKind.FAILED_COMPARISON:
+            print(f"Test:  '{fail.test.config.name}'")
+            print(f"Input: '{fail.test.input_file}'")
+            print('Failed due to differing outputs:')
+
+            print_diff(fail.data)
         else:
             assert False
 

@@ -14,10 +14,11 @@ class CompareResultKind(Enum):
 @dataclass
 class CompareResult:
     kind: CompareResultKind
+    expected_file: Path = None
+    received_file: Path = None
     diff: [str] = None
 
-
-def compare_test_output_files(config: AppConfig, test_instance: TestInstance) -> CompareResult:
+def compare_test_output_files(config: AppConfig, test_instance: TestInstance) -> [str]:
     input_file = test_instance.input_file
     test_name = test_instance.config.name
 
@@ -27,24 +28,26 @@ def compare_test_output_files(config: AppConfig, test_instance: TestInstance) ->
     assert(received_file.exists())
 
     if not expected_file.exists():
-        return CompareResult(kind=CompareResultKind.MISSING_EXPECTED)
+        return None # No comparison could be made
     else:
         with open(received_file, 'r') as recv, open(expected_file, 'r') as exp:
             diff = list(difflib.unified_diff(exp.readlines(), recv.readlines(), lineterm='\n'))
-            diff[0] = f"{diff[0].rstrip()} {str(expected_file)}\n"
-            diff[1] = f"{diff[1].rstrip()} {str(received_file)}\n"
+
             if diff:
-                return CompareResult(kind=CompareResultKind.FAIL, diff=diff)
+                diff[0] = f"{diff[0].rstrip()} {str(expected_file)}\n"
+                diff[1] = f"{diff[1].rstrip()} {str(received_file)}\n"
+
+                return diff
             else:
-                return CompareResult(kind=CompareResultKind.PASS)
+                return []
 
 
 def print_diff(diff_lines: [str]):
     green = '\x1b[32m'
     red = '\x1b[31m'
-    reset = '\x1b[0m'
     cyan = '\x1b[36m'
     bold = '\x1b[1m'
+    reset = '\x1b[0m'
 
     print(bold + red + diff_lines[0] + reset, end='')
     print(bold + green + diff_lines[1] + reset, end='')

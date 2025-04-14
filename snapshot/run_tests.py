@@ -7,9 +7,10 @@ from comparison import *
 
 
 # TODO: multithread
-def run_tests(config: AppConfig, tests: [TestInstance], max_failures: int) -> [TestExecutionResult]:
-    results = []
-    failures = 0
+# Returns tuple of (passed, failed)
+def run_tests(config: AppConfig, tests: [TestInstance], max_failures: int) -> ([TestResult], [TestResult]):
+    passed = []
+    failed = []
 
     for t in tests:
         cmd = format_command(t.config.command, t.input_file)
@@ -17,19 +18,37 @@ def run_tests(config: AppConfig, tests: [TestInstance], max_failures: int) -> [T
         exec_result = execute_command(cmd, output_file)
 
         if exec_result.returncode != t.config.return_code:
-            fail = TestExecutionResult(TestExecutionResultKind.FAIL, t, exec_result.returncode)
-            results.append(fail)
-
-            failures += 1
+            fail = TestResult(t, TestResultKind.FAILED_EXECUTION, exec_result.returncode)
+            failed.append(fail)
 
             if failures >= max_failures:
                 break
         else:
-            passed = TestExecutionResult(TestExecutionResultKind.PASS, t)
-            results.append(passed)
+            success = TestResult(t, TestResultKind.PASSED_EXECUTION)
+            passed.append(success)
 
-    return results
+    return (passed, failed)
 
+
+"""
+def collect_test_results(config: AppConfig, exec_results: TestExecutionResult, failures: int) -> [CompareResult|TestExecutionResult]:
+    results = []
+
+    for result in exec_results:
+        if result.kind == TestExecutionResultKind.PASS and failures < config.max_failures:
+            cmp_result = compare_test_output_files(config, result.test)
+
+            if cmp_result.kind == CompareResultKind.FAIL or \
+               cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
+                failures += 1
+
+            results.append(cmp_result)
+        else:
+            failures += 1
+            results.append(result)
+
+        return results
+"""
 
 def execute_command(command: str, output_file: Path) -> subprocess.CompletedProcess:
     with open(output_file, "w") as f:
