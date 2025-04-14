@@ -8,7 +8,7 @@ from comparison import *
 
 # TODO: multithread
 # Returns tuple of (passed, failed)
-def run_tests(config: AppConfig, tests: [TestInstance], max_failures: int) -> ([TestResult], [TestResult]):
+def execute_test_commands(config: AppConfig, tests: [TestInstance], max_failures: int) -> ([TestResult], [TestResult]):
     passed = []
     failed = []
 

@@ -1,45 +1,16 @@
-import argparse
-
 from run_tests import *
 from accept import *
 
 
-# TODO: store args in AppConfig
 # TODO: make subparsers share arguments etc
 # TODO: comma separated tests flag
-# TODO: use same test class for all purposes
-# TODO: TestInstance -> TestToExecute
-# TODO: allow setting user speicifed file as expected
+# TODO: allow setting user specified file as expected output
 
 def snapshot():
-    parser = argparse.ArgumentParser(prog='snapshot')
-
-    parser.add_argument('config', help='TOML config file.')
-    parser.add_argument('--tests', help='Which tests to run.', nargs='+', default='*')
-
-    subparsers = parser.add_subparsers(dest='command')
-
-    run_parser = subparsers.add_parser('run', help='Run tests')
-    run_parser.add_argument('input_files', nargs='+', help='Files to run tests on.')
-    run_parser.add_argument('--save', action='store_true', default=False, help='Automatically accept all output.')
-
-    accept_parser = subparsers.add_parser('accept', help='Accept received output.')
-    accept_parser.add_argument('input_files', nargs='+', help='Files to accept.')
-
-    unaccept_parser = subparsers.add_parser('unaccept', help='Unaccept received output.')
-    unaccept_parser.add_argument('input_files', nargs='+', help='Files to unaccept.')
-
-    rm_parser = subparsers.add_parser('rm', help='Remove received and expected output.')
-    rm_parser.add_argument('input_files', nargs='+', help='Files to remove.')
-
-    diff_parser = subparsers.add_parser('diff', help='Display difference between expected and received output files.')
-    diff_parser.add_argument('input_files', nargs='+', help='Files to diff.')
-
-    clean_parser = subparsers.add_parser('clean', help='Clean all expected and received files.')
-
+    parser = create_parser()
     args = parser.parse_args()
 
-    cfg = parse_config_file(args.config)
+    cfg = parse_app_config(args)
 
     setup_directories(cfg)
 
@@ -97,33 +68,49 @@ def diff(config: AppConfig, tests: [TestInstance], args):
 def run(config: AppConfig, test_instances: [TestInstance], args):
     # to_compare: tests that successfully ran but need their outputs verifier
     # failed: tests that failed to run
-    to_compare, failed = run_tests(config, test_instances, config.max_failures)
+    to_compare, failed = execute_test_commands(config, test_instances, config.max_failures)
     passed = []
 
-    for test in to_compare:
+    for result in to_compare:
         # Go through all candidates and compare their outputs to expected
-        assert test.kind is TestResultKind.PASSED_EXECUTION
+        assert result.kind is TestResultKind.PASSED_EXECUTION
 
         if len(failed) >= config.max_failures:
             break
 
-        cmp_result = compare_test_output_files(config, test.test)
+        cmp_result = compare_test_output_files(config, result.test)
 
         if cmp_result is None:
             # Unable to compare since there is no expected output
-            # TODO: if save flag is present, accept and count as pass
-            test.kind = TestResultKind.MISSING_EXPECTED
-            failed.append(test)
+            if config.options.save:
+                # Save received output as expected
+                print(f"No expected output for file '{result.test.input_file}' in test "
+                      f"'{result.test.config.name}', saving as expected.")
+                result.kind = TestResultKind.PASSED_COMPARISON
+                passed.append(result)
+                accept_output(config, result.test)
+
+            else:
+                result.kind = TestResultKind.MISSING_EXPECTED
+                failed.append(result)
         elif cmp_result == []:
             # No diff between received and expected output, count as pass
-            test.kind = TestResultKind.PASSED_COMPARISON
-            passed.append(test)
+            result.kind = TestResultKind.PASSED_COMPARISON
+            passed.append(result)
         else:
-            # Diff between received and expected output, count as fail
-            assert test.kind is TestResultKind.PASSED_EXECUTION
-            test.kind = TestResultKind.FAILED_COMPARISON
-            test.data = cmp_result
-            failed.append(test)
+            # Diff between received and expected output
+            if config.options.save:
+                result.kind = TestResultKind.PASSED_COMPARISON
+                passed.append(result)
+
+                print(f"No expected output for file '{result.test.input_file}' in test "
+                      f"'{result.test.config.name}', saving as expected.")
+                accept_output(config, result.test)
+            else:
+                assert result.kind is TestResultKind.PASSED_EXECUTION
+                result.kind = TestResultKind.FAILED_COMPARISON
+                result.data = cmp_result
+                failed.append(result)
 
     fail_count = len(failed)
     pass_count = len(passed)
@@ -132,10 +119,10 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
     print(f"Passed {pass_count}/{total_count} tests.\n")
 
     for fail in failed:
-        if test.kind is TestResultKind.MISSING_EXPECTED:
+        if fail.kind is TestResultKind.MISSING_EXPECTED:
             print(f"File '{fail.test.input_file}' lacks expected output for "
                   f"test '{fail.test.config.name}'.")
-        elif test.kind is TestResultKind.FAILED_COMPARISON:
+        elif fail.kind is TestResultKind.FAILED_COMPARISON:
             print(f"Test:  '{fail.test.config.name}'")
             print(f"Input: '{fail.test.input_file}'")
             print('Failed due to differing outputs:')
@@ -184,6 +171,35 @@ def gather_test_instances(test_configs: [TestConfig], files: [str]) -> [TestInst
             result.append(test)
 
     return result
+
+
+def create_parser():
+    parser = argparse.ArgumentParser(prog='snapshot')
+
+    parser.add_argument('config', help='TOML config file.')
+    parser.add_argument('--tests', help='Which tests to run.', nargs='+', default='*')
+
+    subparsers = parser.add_subparsers(dest='command')
+
+    run_parser = subparsers.add_parser('run', help='Run tests')
+    run_parser.add_argument('input_files', nargs='+', help='Files to run tests on.')
+    run_parser.add_argument('--save', action='store_true', default=False, help='Automatically accept all output.')
+
+    accept_parser = subparsers.add_parser('accept', help='Accept received output.')
+    accept_parser.add_argument('input_files', nargs='+', help='Files to accept.')
+
+    unaccept_parser = subparsers.add_parser('unaccept', help='Unaccept received output.')
+    unaccept_parser.add_argument('input_files', nargs='+', help='Files to unaccept.')
+
+    rm_parser = subparsers.add_parser('rm', help='Remove received and expected output.')
+    rm_parser.add_argument('input_files', nargs='+', help='Files to remove.')
+
+    diff_parser = subparsers.add_parser('diff', help='Display difference between expected and received output files.')
+    diff_parser.add_argument('input_files', nargs='+', help='Files to diff.')
+
+    clean_parser = subparsers.add_parser('clean', help='Clean all expected and received files.')
+
+    return parser
 
 
 if __name__ == '__main__':
