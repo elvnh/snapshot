@@ -7,7 +7,7 @@ from accept import *
 # TODO: allow setting user specified file as expected output
 # TODO: running from different directory
 # TODO: interactive mode for:
-#       accept, unaccept, clean, rm, diff
+#       accept, unaccept, clean, rm
 
 def snapshot():
     parser = create_parser()
@@ -59,13 +59,16 @@ def rm(config: AppConfig, tests: [TestInstance], args):
 
 
 def diff(config: AppConfig, tests: [TestInstance], args):
-    # TODO: print summary after finishing diff
+    diff_count = 0
+
     for t in tests:
         cmp_result = compare_test_output_files(config, t)
 
         if cmp_result:
-            # TODO: if interactive, let user accept
-            print(f"Received output for file '{t.input_file}' differs from expected output:")
+            diff_count += 1
+
+            print(f"Received output for file '{t.input_file}' in test '{t.config.name}' "
+                  "differs from expected output:")
             print_diff(cmp_result)
 
             if config.options.interactive:
@@ -75,6 +78,8 @@ def diff(config: AppConfig, tests: [TestInstance], args):
                     # TODO: print this in accept_output instead
                     print('Accepting received output as expected output.')
                     accept_output(config, t)
+
+    print(f"Found diffs in {diff_count}/{len(tests)} tests.")
 
 
 
@@ -151,10 +156,24 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
             assert False
 
 
-def accept(cfg: AppConfig, tests: [TestConfig], args: [str]):
+def accept(cfg: AppConfig, tests: [TestInstance], args: [str]):
     for t in tests:
-        for f in args.input_files:
-            accept_output(cfg, t)
+        if t.input_file.exists():
+            expected_file = get_expected_output_file(cfg, t)
+            diff = compare_test_output_files(cfg, t)
+
+            if diff or not expected_file.exists():
+                should_accept = True
+
+                if cfg.options.interactive:
+                    should_accept = yes_no_prompt(
+                        f"\nWould you like to accept output for file '{t.input_file}' "
+                        f"in test '{t.config.name}'?", 'n')
+
+                    if should_accept:
+                        accept_output(cfg, t)
+        else:
+            assert False
 
 
 def get_test_configs(config: AppConfig, args: [str]) -> [TestConfig]:

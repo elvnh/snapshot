@@ -11,9 +11,8 @@ def compare_test_output_files(config: AppConfig, test_instance: TestInstance) ->
     received_file = get_received_output_file(config, test_instance)
     expected_file = get_expected_output_file(config, test_instance)
 
-    assert(received_file.exists())
 
-    if not expected_file.exists():
+    if not received_file.exists() or not expected_file.exists():
         return None # No comparison could be made
     else:
         with open(received_file, 'r') as recv, open(expected_file, 'r') as exp:
