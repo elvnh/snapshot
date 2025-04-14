@@ -59,13 +59,23 @@ def rm(config: AppConfig, tests: [TestInstance], args):
 
 
 def diff(config: AppConfig, tests: [TestInstance], args):
+    # TODO: print summary after finishing diff
     for t in tests:
-        for f in args.input_files:
-            cmp_result = compare_test_output_files(config, t)
-            if cmp_result.kind != CompareResultKind.PASS:
-                # TODO: if interactive, let user accept
-                print(f"Received output for file '{f}' differs from expected output:")
-                print_diff(cmp_result.diff)
+        cmp_result = compare_test_output_files(config, t)
+
+        if cmp_result:
+            # TODO: if interactive, let user accept
+            print(f"Received output for file '{t.input_file}' differs from expected output:")
+            print_diff(cmp_result)
+
+            if config.options.interactive:
+                response = yes_no_prompt('Would you like to accept the received output as expected output?', 'n')
+
+                if response:
+                    # TODO: print this in accept_output instead
+                    print('Accepting received output as expected output.')
+                    accept_output(config, t)
+
 
 
 def run(config: AppConfig, test_instances: [TestInstance], args):
