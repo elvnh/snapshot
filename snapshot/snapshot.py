@@ -6,7 +6,8 @@ from accept import *
 # TODO: comma separated tests flag
 # TODO: allow setting user specified file as expected output
 # TODO: running from different directory
-
+# TODO: interactive mode for:
+#       accept, unaccept, clean, rm, diff
 
 def snapshot():
     parser = create_parser()
@@ -83,11 +84,17 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
         cmp_result = compare_test_output_files(config, result.test)
 
         if cmp_result is None:
+            print(f"\nNo expected output for file '{result.test.input_file}' in test "
+                  f"'{result.test.config.name}'.")
             # Unable to compare since there is no expected output
-            if config.options.save:
+            should_save = config.options.save
+
+            if config.options.interactive:
+                should_save = prompt_to_save_output(config, result.test)
+
+            if should_save:
                 # Save received output as expected
-                print(f"No expected output for file '{result.test.input_file}' in test "
-                      f"'{result.test.config.name}', saving as expected.")
+                print('Saving output as expected output.\n')
                 result.kind = TestResultKind.PASSED_COMPARISON
                 passed.append(result)
                 accept_output(config, result.test)
@@ -105,8 +112,8 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
                 result.kind = TestResultKind.PASSED_COMPARISON
                 passed.append(result)
 
-                print(f"No expected output for file '{result.test.input_file}' in test "
-                      f"'{result.test.config.name}', saving as expected.")
+                #print(f"No expected output for file '{result.test.input_file}' in test "
+                #      f"'{result.test.config.name}', saving as expected.")
                 accept_output(config, result.test)
             else:
                 assert result.kind is TestResultKind.PASSED_EXECUTION
@@ -122,7 +129,7 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
 
     for fail in failed:
         if fail.kind is TestResultKind.MISSING_EXPECTED:
-            print(f"File '{fail.test.input_file}' lacks expected output for "
+            print(f"Input file '{fail.test.input_file}' lacks expected output for "
                   f"test '{fail.test.config.name}'.")
         elif fail.kind is TestResultKind.FAILED_COMPARISON:
             print(f"Test:  '{fail.test.config.name}'")
@@ -177,11 +184,53 @@ def gather_test_instances(test_configs: [TestConfig], files: [str]) -> [TestInst
     return result
 
 
+def prompt_to_save_output(config: AppConfig, test: TestInstance) -> bool:
+    while True:
+        result = yes_no_prompt('Would you like to save received output as expected output?', 'n')
+        if result is not None:
+            return result
+
+
+def yes_no_prompt(prompt: str, default: chr) -> bool:
+    assert default == 'y' or default == 'n'
+    print(prompt, '', end='')
+
+    if default == 'y':
+        print('[Y/n]')
+    else:
+        print('[y/N]')
+
+    i = getch().lower()
+
+    if i == '\n':
+        i = default
+
+    if i == 'y':
+        return True
+    elif i == 'n':
+        return False
+    else:
+        return None
+
+
+def getch():
+    import sys, termios, tty
+
+    fd = sys.stdin.fileno()
+    orig = termios.tcgetattr(fd)
+
+    try:
+        tty.setcbreak(fd)  # or tty.setraw(fd) if you prefer raw mode's behavior.
+        return sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSAFLUSH, orig)
+
 def create_parser():
     parser = argparse.ArgumentParser(prog='snapshot')
 
     parser.add_argument('config', help='TOML config file.')
     parser.add_argument('-t', '--tests', help='Which tests to run.', nargs=1, default=['*'])
+    parser.add_argument('-i', '--interactive', help='Interactive mode.', action='store_true')
 
     subparsers = parser.add_subparsers(dest='command')
 
