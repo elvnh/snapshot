@@ -1,13 +1,18 @@
 from run_tests import *
 from accept import *
 
-
-# TODO: make subparsers share arguments etc
-# TODO: comma separated tests flag
-# TODO: allow setting user specified file as expected output
-# TODO: running from different directory
-# TODO: interactive mode for:
-#       accept, unaccept, clean, rm
+"""
+TODO:
+  - make subparsers share arguments etc
+  - comma separated tests flag
+  - allow setting user specified file as expected output
+  - running from different directory
+  - nicer printing
+  - reuse printing functionality
+  - check that destination file names aren't already taken
+  - interactive mode for: unaccept, clean?
+  - tests
+"""
 
 def snapshot():
     parser = create_parser()
@@ -51,11 +56,21 @@ def unaccept(config: AppConfig, tests: [TestInstance], args):
 
 def rm(config: AppConfig, tests: [TestInstance], args):
     for t in tests:
-        received = get_received_output_file(config, t.config.name, t.input_file)
-        expected = get_expected_output_file(config, t.config.name, t.input_file)
+        received = get_received_output_file(config, t)
+        expected = get_expected_output_file(config, t)
 
-        received.unlink(missing_ok=True)
-        expected.unlink(missing_ok=True)
+        if received.exists() or expected.exists():
+            should_remove = True
+
+            if config.options.interactive:
+                should_remove = yes_no_prompt(
+                    "Would you like to remove the received and expected outputs for "
+                    f"file '{t.input_file}' in test '{t.config.name}'?", 'n'
+                )
+
+            if should_remove:
+                received.unlink(missing_ok=True)
+                expected.unlink(missing_ok=True)
 
 
 def diff(config: AppConfig, tests: [TestInstance], args):
@@ -72,7 +87,9 @@ def diff(config: AppConfig, tests: [TestInstance], args):
             print_diff(cmp_result)
 
             if config.options.interactive:
-                response = yes_no_prompt('Would you like to accept the received output as expected output?', 'n')
+                response = yes_no_prompt(
+                    'Would you like to accept the received output as expected output?', 'n'
+                )
 
                 if response:
                     # TODO: print this in accept_output instead
@@ -80,7 +97,6 @@ def diff(config: AppConfig, tests: [TestInstance], args):
                     accept_output(config, t)
 
     print(f"Found diffs in {diff_count}/{len(tests)} tests.")
-
 
 
 def run(config: AppConfig, test_instances: [TestInstance], args):
@@ -170,8 +186,8 @@ def accept(cfg: AppConfig, tests: [TestInstance], args: [str]):
                         f"\nWould you like to accept output for file '{t.input_file}' "
                         f"in test '{t.config.name}'?", 'n')
 
-                    if should_accept:
-                        accept_output(cfg, t)
+                if should_accept:
+                    accept_output(cfg, t)
         else:
             assert False
 
