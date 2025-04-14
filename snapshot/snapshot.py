@@ -10,7 +10,6 @@ from accept import *
 # TODO: use same test class for all purposes
 # TODO: TestInstance -> TestToExecute
 # TODO: allow setting user speicifed file as expected
-# TODO: remove unused classes
 
 def snapshot():
     parser = argparse.ArgumentParser(prog='snapshot')

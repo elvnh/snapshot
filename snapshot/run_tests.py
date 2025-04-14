@@ -30,26 +30,6 @@ def run_tests(config: AppConfig, tests: [TestInstance], max_failures: int) -> ([
     return (passed, failed)
 
 
-"""
-def collect_test_results(config: AppConfig, exec_results: TestExecutionResult, failures: int) -> [CompareResult|TestExecutionResult]:
-    results = []
-
-    for result in exec_results:
-        if result.kind == TestExecutionResultKind.PASS and failures < config.max_failures:
-            cmp_result = compare_test_output_files(config, result.test)
-
-            if cmp_result.kind == CompareResultKind.FAIL or \
-               cmp_result.kind == CompareResultKind.MISSING_EXPECTED:
-                failures += 1
-
-            results.append(cmp_result)
-        else:
-            failures += 1
-            results.append(result)
-
-        return results
-"""
-
 def execute_command(command: str, output_file: Path) -> subprocess.CompletedProcess:
     with open(output_file, "w") as f:
         return subprocess.run(command, shell=True, stdout=f, stderr=f)
