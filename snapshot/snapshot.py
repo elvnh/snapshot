@@ -4,13 +4,11 @@ from accept import *
 """
 TODO:
   - make subparsers share arguments etc
-  - comma separated tests flag
   - allow setting user specified file as expected output
   - running from different directory
   - nicer printing
   - reuse printing functionality
   - check that destination file names aren't already taken
-  - interactive mode for: unaccept, clean?
   - tests
 """
 
@@ -50,8 +48,18 @@ def clean(config: AppConfig, tests: [TestInstance], args):
 
 def unaccept(config: AppConfig, tests: [TestInstance], args):
     for t in tests:
-        expected = get_expected_output_file(config, t.config.name, t.input_file)
-        expected.unlink()
+        expected = get_expected_output_file(config, t)
+        should_unaccept = True
+
+        if config.options.interactive and t.input_file.exists():
+            should_unaccept = yes_no_prompt(
+                f"Would you like too discard expected output for file '{t.input_file}' in test "
+                f"'{t.config.name}'?",
+                'n'
+            )
+
+        if should_unaccept:
+            expected.unlink()
 
 
 def rm(config: AppConfig, tests: [TestInstance], args):
@@ -230,32 +238,34 @@ def gather_test_instances(test_configs: [TestConfig], files: [str]) -> [TestInst
 
 
 def prompt_to_save_output(config: AppConfig, test: TestInstance) -> bool:
-    while True:
-        result = yes_no_prompt('Would you like to save received output as expected output?', 'n')
-        if result is not None:
-            return result
+    result = yes_no_prompt('Would you like to save received output as expected output?', 'n')
+
+    if result is not None:
+        return result
 
 
 def yes_no_prompt(prompt: str, default: chr) -> bool:
     assert default == 'y' or default == 'n'
-    print(prompt, '', end='')
 
-    if default == 'y':
-        print('[Y/n]')
-    else:
-        print('[y/N]')
+    while True:
+        print(prompt, '', end='')
 
-    i = getch().lower()
+        if default == 'y':
+            print('[Y/n]')
+        else:
+            print('[y/N]')
 
-    if i == '\n':
-        i = default
+        i = getch().lower()
 
-    if i == 'y':
-        return True
-    elif i == 'n':
-        return False
-    else:
-        return None
+        if i == '\n':
+            i = default
+
+        if i == 'y':
+            return True
+        elif i == 'n':
+            return False
+        else:
+            print(f"Please respond by clicking y, n or Enter.\n")
 
 
 def getch():
