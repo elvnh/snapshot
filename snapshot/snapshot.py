@@ -12,6 +12,7 @@ TODO:
   - check that destination file names aren't already taken
   - tests
   - verbose option
+  - allow aborting after certain amount of failures
 """
 
 def snapshot():
@@ -87,25 +88,32 @@ def rm(config: AppConfig, tests: [TestInstance], args):
 def diff(config: AppConfig, tests: [TestInstance], args):
     diff_count = 0
 
-    for t in tests:
-        cmp_result = compare_test_output_files(config, t)
+    with futures.ThreadPoolExecutor(config.options.jobs) as tp:
+        futs = []
 
-        if cmp_result:
-            diff_count += 1
+        for test in tests:
+            fut = tp.submit(compare_test_output_files, config, test)
+            futs.append(fut)
 
-            print(f"Received output for file '{t.input_file}' in test '{t.config.name}' "
-                  "differs from expected output:")
-            print_diff(cmp_result)
+        for fut in futs:
+            result = fut.result()
 
-            if config.options.interactive:
-                response = yes_no_prompt(
-                    'Would you like to accept the received output as expected output?', 'n'
-                )
+            if result:
+                diff_count += 1
 
-                if response:
-                    # TODO: print this in accept_output instead
-                    print('Accepting received output as expected output.')
-                    accept_output(config, t)
+                print(f"Received output for file '{t.input_file}' in test '{t.config.name}' "
+                      "differs from expected output:")
+                print_diff(result)
+
+                if config.options.interactive:
+                    response = yes_no_prompt(
+                        'Would you like to accept the received output as expected output?', 'n'
+                    )
+
+                    if response:
+                        # TODO: print this in accept_output instead
+                        print('Accepting received output as expected output.')
+                        accept_output(config, t)
 
     print(f"Found diffs in {diff_count}/{len(tests)} tests.")
 
@@ -302,14 +310,15 @@ def create_parser():
     parser.add_argument('config', help='TOML config file.')
     parser.add_argument('-t', '--tests', help='Which tests to run.', nargs=1, default=['*'])
     parser.add_argument('-i', '--interactive', help='Interactive mode.', action='store_true')
+    parser.add_argument('-j', '--jobs', default=1, type=int,
+                            help='Maximum number of concurrent threads used.')
 
     subparsers = parser.add_subparsers(dest='command')
 
     run_parser = subparsers.add_parser('run', help='Run tests')
     run_parser.add_argument('input_files', nargs='+', help='Files to run tests on.')
     run_parser.add_argument('-s', '--save', action='store_true', default=False, help='Automatically accept all output.')
-    run_parser.add_argument('-j', '--jobs', default=1, type=int,
-                            help='Maximum number of concurrent threads used.')
+
 
     accept_parser = subparsers.add_parser('accept', help='Accept received output.')
     accept_parser.add_argument('input_files', nargs='+', help='Files to accept.')
