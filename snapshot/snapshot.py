@@ -128,8 +128,32 @@ def run(config: AppConfig, test_instances: [TestInstance]):
 
         for fut in futs:
             result = fut.result()
-            if result.fail():
-                failed.append(result)
+
+            if result.kind == TestResultKind.FAILED_COMPARISON or \
+               result.kind == TestResultKind.MISSING_EXPECTED:
+                # Test failed but has a chance of succeeding if user
+                # accepts the new output
+                should_save = config.options.save
+
+                if config.options.interactive:
+                    if result.kind == TestResultKind.FAILED_COMPARISON:
+                        print(f"Output for file '{result.test.input_file}' in test "
+                              f"'{result.test.config.name}' differs from expected output:")
+                        print_diff(result.data)
+                    elif result.kind == TestResultKind.MISSING_EXPECTED:
+                        print(f"\nNo expected output for file '{result.test.input_file}' in test "
+                              f"'{result.test.config.name}'.")
+
+                    should_save = yes_no_prompt(
+                        "Would you like to accept the new received output?", 'n'
+                    )
+
+                if should_save:
+                    result.kind = TestResultKind.PASSED_COMPARISON
+                    accept_output(config, result.test)
+                    passed.append(result)
+                else:
+                    failed.append(result)
             else:
                 passed.append(result)
 
@@ -171,6 +195,25 @@ def accept(cfg: AppConfig, tests: [TestInstance], args: [str]):
                     accept_output(cfg, t)
         else:
             assert False
+
+
+def run_single_test(config: AppConfig, test_instance: TestInstance) -> TestResult:
+    result = execute_test_command(config, test_instance)
+
+    if result.kind is TestResultKind.PASSED_EXECUTION:
+        diff = compare_test_output_files(config, result.test)
+
+        if diff is None:
+            result.kind = TestResultKind.MISSING_EXPECTED
+        elif diff == []:
+            # No diff between received and expected output, count as pass
+            result.kind = TestResultKind.PASSED_COMPARISON
+        else:
+            # Diff between received and expected output
+            result.kind = TestResultKind.FAILED_COMPARISON
+            result.data = diff
+
+    return result;
 
 
 def get_test_configs(config: AppConfig, args: [str]) -> [TestConfig]:
