@@ -8,7 +8,7 @@ from comparison import *
 
 # TODO: multithread
 # Returns tuple of (passed, failed)
-def execute_test_commands(config: AppConfig, tests: [TestInstance], max_failures: int) -> ([TestResult], [TestResult]):
+def execute_test_commands(config: AppConfig, tests: [TestInstance]) -> ([TestResult], [TestResult]):
     passed = []
     failed = []
 
@@ -21,7 +21,7 @@ def execute_test_commands(config: AppConfig, tests: [TestInstance], max_failures
             fail = TestResult(t, TestResultKind.FAILED_EXECUTION, exec_result.returncode)
             failed.append(fail)
 
-            if failures >= max_failures:
+            if len(failed) >= config.max_failures:
                 break
         else:
             success = TestResult(t, TestResultKind.PASSED_EXECUTION)

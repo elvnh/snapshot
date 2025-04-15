@@ -10,6 +10,7 @@ TODO:
   - reuse printing functionality
   - check that destination file names aren't already taken
   - tests
+  - verbose option
 """
 
 def snapshot():
@@ -110,7 +111,7 @@ def diff(config: AppConfig, tests: [TestInstance], args):
 def run(config: AppConfig, test_instances: [TestInstance], args):
     # to_compare: tests that successfully ran but need their outputs verifier
     # failed: tests that failed to run
-    to_compare, failed = execute_test_commands(config, test_instances, config.max_failures)
+    to_compare, failed = execute_test_commands(config, test_instances)
     passed = []
 
     for result in to_compare:
@@ -147,12 +148,21 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
             passed.append(result)
         else:
             # Diff between received and expected output
-            if config.options.save:
+            should_save = config.options.save
+
+            if config.options.interactive:
+                print(f"Output for file '{result.test.input_file}' in test "
+                      f"'{result.test.config.name}' differs from expected output:")
+                print_diff(cmp_result)
+
+                should_save = yes_no_prompt(
+                    "Would you like to accept the new received output?", 'n'
+                )
+
+            if should_save:
                 result.kind = TestResultKind.PASSED_COMPARISON
                 passed.append(result)
 
-                #print(f"No expected output for file '{result.test.input_file}' in test "
-                #      f"'{result.test.config.name}', saving as expected.")
                 accept_output(config, result.test)
             else:
                 assert result.kind is TestResultKind.PASSED_EXECUTION
@@ -177,6 +187,7 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
 
             print_diff(fail.data)
         else:
+            print(fail)
             assert False
 
 
