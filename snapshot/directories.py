@@ -23,8 +23,8 @@ def get_expected_output_dir(config: AppConfig, test_cfg: TestConfig) -> Path:
     return Path(get_test_output_dir(config, test_cfg) / "expected")
 
 def get_received_output_file(config: AppConfig, test: TestInstance) -> Path:
-    return Path(get_received_output_dir(config, test.config) / test.input_file)
+    return Path(get_received_output_dir(config, test.config) / test.input_file.name)
 
 
 def get_expected_output_file(config: AppConfig, test: TestConfig) -> Path:
-    return Path(get_expected_output_dir(config, test.config) /  test.input_file)
+    return Path(get_expected_output_dir(config, test.config) /  test.input_file.name)
