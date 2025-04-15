@@ -13,6 +13,7 @@ TODO:
   - tests
   - verbose option
   - allow aborting after certain amount of failures
+  - not printing diffs, only summary, if option is present
 """
 
 def snapshot():
@@ -103,7 +104,7 @@ def diff(config: AppConfig, tests: [TestInstance], args):
 
                 print(f"Received output for file '{t.input_file}' in test '{t.config.name}' "
                       "differs from expected output:")
-                print_diff(result)
+                print_diff(result, config.options.no_truncate_diffs)
 
                 if config.options.interactive:
                     response = yes_no_prompt(
@@ -147,7 +148,7 @@ def run(config: AppConfig, test_instances: [TestInstance]):
                     if result.kind == TestResultKind.FAILED_COMPARISON:
                         print(f"Output for file '{result.test.input_file}' in test "
                               f"'{result.test.config.name}' differs from expected output:")
-                        print_diff(result.data)
+                        print_diff(result.data, config.options.no_truncate_diffs)
                     elif result.kind == TestResultKind.MISSING_EXPECTED:
                         print(f"\nNo expected output for file '{result.test.input_file}' in test "
                               f"'{result.test.config.name}'.")
@@ -180,7 +181,7 @@ def run(config: AppConfig, test_instances: [TestInstance]):
             print(f"Input: '{fail.test.input_file}'")
             print('Failed due to differing outputs:')
 
-            print_diff(fail.data)
+            print_diff(fail.data, config.options.no_truncate_diffs)
         else:
             assert False
 
@@ -312,7 +313,8 @@ def create_parser():
     parser.add_argument('-i', '--interactive', help='Interactive mode.', action='store_true')
     parser.add_argument('-j', '--jobs', default=1, type=int,
                             help='Maximum number of concurrent threads used.')
-
+    parser.add_argument('-T', '--no-truncate-diffs', default=False, action='store_true',
+                            help="Don't truncate long diffs.")
     subparsers = parser.add_subparsers(dest='command')
 
     run_parser = subparsers.add_parser('run', help='Run tests')
