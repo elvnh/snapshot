@@ -1,5 +1,6 @@
 from run_tests import *
 from accept import *
+from concurrent import futures
 
 """
 TODO:
@@ -27,8 +28,9 @@ def snapshot():
     if hasattr(args, 'input_files'):
         test_instances = gather_test_instances(test_configs, args.input_files)
 
+        # TODO: remove args argument to command functions
     if args.command == 'run':
-        run(cfg, test_instances, args)
+        run(cfg, test_instances)
     elif args.command == 'accept':
         accept(cfg, test_instances, args)
     elif args.command == 'diff':
@@ -108,67 +110,28 @@ def diff(config: AppConfig, tests: [TestInstance], args):
     print(f"Found diffs in {diff_count}/{len(tests)} tests.")
 
 
-def run(config: AppConfig, test_instances: [TestInstance], args):
-    # to_compare: tests that successfully ran but need their outputs verifier
-    # failed: tests that failed to run
-    to_compare, failed = execute_test_commands(config, test_instances)
+def run(config: AppConfig, test_instances: [TestInstance]):
+    # TODO: if concurrent job count is 1, use a regular for loop instead
+    # TODO: don't give each thread only one test at a time, instead split up
+    #  test array into equally divided segments and give to threads
     passed = []
+    failed = []
 
-    for result in to_compare:
-        # Go through all candidates and compare their outputs to expected
-        assert result.kind is TestResultKind.PASSED_EXECUTION
+    threads = config.options.jobs
+    with futures.ThreadPoolExecutor(threads) as tp:
+        futs = []
 
-        if len(failed) >= config.max_failures:
-            break
+        for test in test_instances:
+            fut = tp.submit(run_single_test, config, test)
 
-        cmp_result = compare_test_output_files(config, result.test)
+            futs.append(fut)
 
-        if cmp_result is None:
-            print(f"\nNo expected output for file '{result.test.input_file}' in test "
-                  f"'{result.test.config.name}'.")
-            # Unable to compare since there is no expected output
-            should_save = config.options.save
-
-            if config.options.interactive:
-                should_save = prompt_to_save_output(config, result.test)
-
-            if should_save:
-                # Save received output as expected
-                print('Saving output as expected output.\n')
-                result.kind = TestResultKind.PASSED_COMPARISON
-                passed.append(result)
-                accept_output(config, result.test)
-
-            else:
-                result.kind = TestResultKind.MISSING_EXPECTED
+        for fut in futs:
+            result = fut.result()
+            if result.fail():
                 failed.append(result)
-        elif cmp_result == []:
-            # No diff between received and expected output, count as pass
-            result.kind = TestResultKind.PASSED_COMPARISON
-            passed.append(result)
-        else:
-            # Diff between received and expected output
-            should_save = config.options.save
-
-            if config.options.interactive:
-                print(f"Output for file '{result.test.input_file}' in test "
-                      f"'{result.test.config.name}' differs from expected output:")
-                print_diff(cmp_result)
-
-                should_save = yes_no_prompt(
-                    "Would you like to accept the new received output?", 'n'
-                )
-
-            if should_save:
-                result.kind = TestResultKind.PASSED_COMPARISON
-                passed.append(result)
-
-                accept_output(config, result.test)
             else:
-                assert result.kind is TestResultKind.PASSED_EXECUTION
-                result.kind = TestResultKind.FAILED_COMPARISON
-                result.data = cmp_result
-                failed.append(result)
+                passed.append(result)
 
     fail_count = len(failed)
     pass_count = len(passed)
@@ -187,7 +150,6 @@ def run(config: AppConfig, test_instances: [TestInstance], args):
 
             print_diff(fail.data)
         else:
-            print(fail)
             assert False
 
 
@@ -303,6 +265,8 @@ def create_parser():
     run_parser = subparsers.add_parser('run', help='Run tests')
     run_parser.add_argument('input_files', nargs='+', help='Files to run tests on.')
     run_parser.add_argument('-s', '--save', action='store_true', default=False, help='Automatically accept all output.')
+    run_parser.add_argument('-j', '--jobs', default=1, type=int,
+                            help='Maximum number of concurrent threads used.')
 
     accept_parser = subparsers.add_parser('accept', help='Accept received output.')
     accept_parser.add_argument('input_files', nargs='+', help='Files to accept.')
@@ -320,6 +284,9 @@ def create_parser():
 
     return parser
 
+import cProfile
+import pstats
 
 if __name__ == '__main__':
+    #cProfile.run('snapshot()', sort=pstats.SortKey.CUMULATIVE)
     snapshot()

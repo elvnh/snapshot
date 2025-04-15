@@ -23,3 +23,8 @@ class TestResult:
     test: TestInstance
     kind: TestResultKind
     data: any = None
+
+    def fail(self) -> bool:
+        return self.kind == TestResultKind.FAILED_EXECUTION or \
+            self.kind == TestResultKind.MISSING_EXPECTED or \
+            self.kind == TestResultKind.FAILED_COMPARISON
