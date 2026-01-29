@@ -102,7 +102,7 @@ def diff(config: AppConfig, tests: [TestInstance], args):
             if result:
                 diff_count += 1
 
-                print(f"Received output for file '{t.input_file}' in test '{t.config.name}' "
+                print(f"Received output for file '{test.input_file}' in test '{test.config.name}' "
                       "differs from expected output:")
                 print_diff(result, config.options.no_truncate_diffs)
 
@@ -114,7 +114,7 @@ def diff(config: AppConfig, tests: [TestInstance], args):
                     if response:
                         # TODO: print this in accept_output instead
                         print('Accepting received output as expected output.')
-                        accept_output(config, t)
+                        accept_output(config, test)
 
     print(f"Found diffs in {diff_count}/{len(tests)} tests.")
 
